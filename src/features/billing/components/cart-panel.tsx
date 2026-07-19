@@ -114,10 +114,10 @@ export function CartPanel({ onOpenPayment, onOpenCustomer, onHoldBill }: CartPan
 
                 <div className="flex justify-between items-center pt-1 border-t border-border/40">
                   {/* Quantity Controls */}
-                  <div className="flex items-center border rounded-lg overflow-hidden bg-background">
+                  <div className="flex items-center border rounded-lg overflow-hidden bg-background h-8 shrink-0">
                     <button
                       onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                      className="p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      className="w-8 h-full flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-all active:scale-75 cursor-pointer"
                     >
                       <MinusIcon className="w-3.5 h-3.5" />
                     </button>
@@ -125,11 +125,11 @@ export function CartPanel({ onOpenPayment, onOpenCustomer, onHoldBill }: CartPan
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateQuantity(item.productId, Number(e.target.value) || 1)}
-                      className="w-10 text-center text-xs font-bold bg-transparent focus:outline-none"
+                      className="w-8 text-center text-xs font-bold bg-transparent focus:outline-none h-full border-none p-0"
                     />
                     <button
                       onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                      className="p-1.5 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      className="w-8 h-full flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground transition-all active:scale-75 cursor-pointer"
                     >
                       <PlusIcon className="w-3.5 h-3.5" />
                     </button>
@@ -137,19 +137,19 @@ export function CartPanel({ onOpenPayment, onOpenCustomer, onHoldBill }: CartPan
 
                   <div className="flex items-center gap-2">
                     {/* Item Discount Input */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-muted-foreground">Disc ₹:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground font-semibold">Disc ₹:</span>
                       <input
                         type="number"
                         value={item.discount || 0}
                         onChange={(e) => updateItemDiscount(item.productId, Number(e.target.value) || 0)}
-                        className="w-12 px-1 py-0.5 border rounded text-[11px] text-center bg-background"
+                        className="w-14 h-8 px-1.5 border rounded-lg text-xs text-center bg-background focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                       />
                     </div>
 
                     <button
                       onClick={() => removeItem(item.productId)}
-                      className="p-1 text-danger hover:bg-danger/10 rounded transition-colors cursor-pointer"
+                      className="w-8 h-8 flex items-center justify-center text-danger hover:bg-danger/10 rounded-lg transition-colors active:scale-75 cursor-pointer"
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>

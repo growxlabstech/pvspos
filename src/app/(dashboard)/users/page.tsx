@@ -7,9 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function UsersPage() {
-  return (
-    <div className="container mx-auto py-2">
-      <UsersClient />
-    </div>
-  );
+  return <UsersClient />;
 }

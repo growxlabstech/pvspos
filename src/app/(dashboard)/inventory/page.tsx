@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { DashboardShell } from '@/components/layout/dashboard-shell';
 import { InventoryClient } from '@/features/inventory/components/inventory-client';
 
 export const metadata: Metadata = {
@@ -7,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function InventoryPage() {
   return (
-    <div className="p-8">
+    <DashboardShell title="Inventory" description="Manage your product stock levels.">
       <InventoryClient />
-    </div>
+    </DashboardShell>
   );
 }

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { PlusIcon } from '@/components/icons';
 import { UserProfile } from '../types/user.types';
 import { toast } from 'sonner';
+import { DashboardShell } from '@/components/layout/dashboard-shell';
 
 export function UsersClient() {
   const { data: users, isLoading, error } = useUsers();
@@ -64,19 +65,15 @@ export function UsersClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center bg-card p-4 rounded-xl border">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">User Management</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Configure dynamic RBAC roles, security permissions, branches, and manage employee login accounts.
-          </p>
-        </div>
+    <DashboardShell
+      title="User Management"
+      description="Configure dynamic RBAC roles, security permissions, branches, and manage employee login accounts."
+      action={
         <Button onClick={handleAddUser} className="font-bold">
           <PlusIcon className="h-4 w-4 mr-2" /> Add Team Member
         </Button>
-      </div>
-
+      }
+    >
       <div className="bg-card p-4 rounded-xl border">
         <UserTable
           users={users || []}
@@ -93,6 +90,6 @@ export function UsersClient() {
         branches={branches || []}
         onSubmit={handleFormSubmit}
       />
-    </div>
+    </DashboardShell>
   );
 }

@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { DashboardShell } from '@/components/layout/dashboard-shell';
 import { SalesClient } from '@/features/sales/components/sales-client';
 
 export const metadata: Metadata = {
@@ -7,8 +8,8 @@ export const metadata: Metadata = {
 
 export default function SalesPage() {
   return (
-    <div className="p-8">
+    <DashboardShell title="Sales History" description="View and manage past transactions.">
       <SalesClient />
-    </div>
+    </DashboardShell>
   );
 }

@@ -147,13 +147,13 @@ export function ProductSearch() {
       </div>
 
       {/* Category Touch Tabs */}
-      <div className="px-3 py-2 border-b bg-muted/30 flex items-center gap-1.5 overflow-x-auto select-none shrink-0">
+      <div className="px-3 py-2.5 border-b bg-muted/30 flex items-center gap-2 overflow-x-auto select-none shrink-0 scrollbar-none">
         <button
           onClick={() => setSelectedCategoryId(null)}
-          className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all whitespace-nowrap cursor-pointer ${
+          className={`px-4 py-1.5 h-8 text-xs font-semibold rounded-full border transition-all duration-150 active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center ${
             !selectedCategoryId
-              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-              : 'bg-card hover:bg-accent border-border text-foreground'
+              ? 'bg-primary text-primary-foreground border-primary shadow-sm font-bold'
+              : 'bg-card hover:bg-accent border-border text-foreground hover:border-muted-foreground/30'
           }`}
         >
           All Items
@@ -162,10 +162,10 @@ export function ProductSearch() {
           <button
             key={cat.id}
             onClick={() => setSelectedCategoryId(cat.id)}
-            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-4 py-1.5 h-8 text-xs font-semibold rounded-full border transition-all duration-150 active:scale-95 whitespace-nowrap cursor-pointer flex items-center justify-center ${
               selectedCategoryId === cat.id
-                ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                : 'bg-card hover:bg-accent border-border text-foreground'
+                ? 'bg-primary text-primary-foreground border-primary shadow-sm font-bold'
+                : 'bg-card hover:bg-accent border-border text-foreground hover:border-muted-foreground/30'
             }`}
           >
             {cat.name}
@@ -184,7 +184,7 @@ export function ProductSearch() {
               <div
                 key={product.id}
                 onClick={() => handleAddToCart(product)}
-                className={`border rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between bg-card hover:shadow-md select-none ${
+                className={`border rounded-xl p-3 cursor-pointer transition-all duration-150 active:scale-[0.97] flex flex-col justify-between bg-card hover:shadow-md select-none ${
                   isSelected ? 'ring-2 ring-primary border-primary shadow-md' : 'hover:border-primary/50'
                 }`}
               >

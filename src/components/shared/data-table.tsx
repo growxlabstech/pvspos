@@ -90,7 +90,8 @@ export function DataTable<TData, TValue>({
           />
         </div>
       )}
-      <div className="rounded-xl border bg-card">
+      {/* Desktop view */}
+      <div className="hidden md:block rounded-xl border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -123,6 +124,63 @@ export function DataTable<TData, TValue>({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Stack view */}
+      <div className="md:hidden space-y-3">
+        {table.getRowModel().rows?.length ? (
+          table.getRowModel().rows.map((row) => {
+            const cells = row.getVisibleCells();
+            const primaryCell = cells[0];
+            if (!primaryCell) return null;
+            const lastCell = cells[cells.length - 1];
+            const isLastCellActions = lastCell && (
+              lastCell.column.id.toLowerCase().includes('action') ||
+              (typeof lastCell.column.columnDef.header === 'string' && lastCell.column.columnDef.header.toLowerCase().includes('action'))
+            );
+            const actionCell = isLastCellActions ? lastCell : null;
+            const otherCells = cells.filter(c => c !== primaryCell && c !== actionCell);
+
+            return (
+              <div key={row.id} className="p-4 rounded-xl border bg-card shadow-sm space-y-3">
+                {/* Header row */}
+                <div className="flex justify-between items-start gap-4">
+                  <div className="font-bold text-foreground text-sm">
+                    {flexRender(primaryCell.column.columnDef.cell, primaryCell.getContext())}
+                  </div>
+                  {actionCell && (
+                    <div className="flex items-center shrink-0">
+                      {flexRender(actionCell.column.columnDef.cell, actionCell.getContext())}
+                    </div>
+                  )}
+                </div>
+
+                {/* Details grid */}
+                {otherCells.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-border/50 text-xs">
+                    {otherCells.map((cell) => {
+                      const headerVal = cell.column.columnDef.header;
+                      return (
+                        <div key={cell.id} className="min-w-0">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+                            {typeof headerVal === 'string' ? headerVal : cell.column.id}
+                          </span>
+                          <span className="text-foreground mt-0.5 block truncate">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <div className="p-8 text-center text-muted-foreground border rounded-xl bg-card">
+            No results found.
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
