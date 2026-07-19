@@ -74,12 +74,21 @@ export function ProductForm({ initialData, onSubmit, isLoading }: ProductFormPro
           </select>
         </FormField>
 
-        <FormField label="SKU" htmlFor="sku" error={form.formState.errors.sku?.message}>
-          <Input id="sku" {...form.register('sku')} placeholder="SKU" disabled={isLoading} />
+        <FormField label="SKU (Auto-generated)" htmlFor="sku" error={form.formState.errors.sku?.message}>
+          <Input
+            id="sku"
+            {...form.register('sku')}
+            placeholder="Leave blank to auto-generate"
+            disabled={isLoading}
+            className="font-mono"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {initialData?.sku ? `Current: ${initialData.sku}` : 'SKU will be auto-generated if left empty (e.g. PVS-DAIR-00001)'}
+          </p>
         </FormField>
 
         <FormField label="Barcode" htmlFor="barcode" error={form.formState.errors.barcode?.message}>
-          <Input id="barcode" {...form.register('barcode')} placeholder="Barcode" disabled={isLoading} />
+          <Input id="barcode" {...form.register('barcode')} placeholder="Scan or enter barcode" disabled={isLoading} className="font-mono" />
         </FormField>
 
         <FormField label="Price" htmlFor="price" error={form.formState.errors.price?.message}>
