@@ -61,7 +61,7 @@ export const billingService = {
         });
       }
 
-      const total = subtotal + taxAmount - data.discount;
+      const total = subtotal + taxAmount - (data.discount || 0);
 
       // 3. Create Sale record
       const sale = await tx.sale.create({
@@ -69,12 +69,14 @@ export const billingService = {
           invoiceNumber,
           subtotal,
           taxAmount,
-          discountAmount: data.discount,
+          discountAmount: data.discount || 0,
           total,
           paymentMethod: data.paymentMethod,
           paymentStatus: 'COMPLETED',
           notes: data.notes,
-          createdBy: userId,
+          profile: {
+            connect: { id: userId },
+          },
           saleItems: {
             create: saleItemsData,
           },
