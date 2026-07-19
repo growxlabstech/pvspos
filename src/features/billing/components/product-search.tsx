@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCartStore } from '@/stores/cart.store';
 import { SearchIcon, ScanBarcodeIcon } from '@/components/icons';
 import { AiProductScanner } from '@/components/ui/ai-product-scanner';
+import { BarcodeScannerModal } from '@/components/ui/barcode-scanner-modal';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -19,6 +20,7 @@ export function ProductSearch() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isAiScannerOpen, setIsAiScannerOpen] = useState(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const addItem = useCartStore((state) => state.addItem);
@@ -90,6 +92,23 @@ export function ProductSearch() {
     }
   };
 
+  // Handle barcode detected from camera scanner
+  const handleBarcodeDetected = useCallback(async (barcode: string) => {
+    try {
+      const res = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`);
+      if (res.ok) {
+        const product = await res.json();
+        handleAddToCart(product);
+        toast.success(`✅ Scanned: ${product.name}`);
+        setIsCameraScannerOpen(false);
+      } else {
+        toast.error(`No product found for barcode: ${barcode}`);
+      }
+    } catch {
+      toast.error('Failed to look up barcode. Please try again.');
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-background border-r">
       {/* Search Input Bar */}
@@ -107,6 +126,15 @@ export function ProductSearch() {
           />
           <ScanBarcodeIcon className="absolute right-3 text-muted-foreground w-4 h-4" />
         </div>
+
+        <Button
+          onClick={() => setIsCameraScannerOpen(true)}
+          variant="outline"
+          size="sm"
+          className="border-green-500/30 text-green-600 hover:bg-green-500/10 font-bold shrink-0 text-xs"
+        >
+          📷 Scan
+        </Button>
 
         <Button
           onClick={() => setIsAiScannerOpen(true)}
@@ -200,6 +228,12 @@ export function ProductSearch() {
           handleAddToCart(prod);
           toast.success(`AI Selected: ${prod.name}`);
         }}
+      />
+
+      <BarcodeScannerModal
+        open={isCameraScannerOpen}
+        onOpenChange={setIsCameraScannerOpen}
+        onBarcodeDetected={handleBarcodeDetected}
       />
     </div>
   );

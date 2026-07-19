@@ -131,39 +131,42 @@ async function main() {
     'PRODUCTS_VIEW', 'INVENTORY_VIEW', 'INVENTORY_STOCK_IN', 'INVENTORY_STOCK_OUT'
   ]);
 
-  // 4. Map existing administrator to dynamic Super Admin role & Main Branch
-  const adminEmail = 'growxlabstech@gmail.com';
-  const adminProfile = await prisma.profile.findUnique({
-    where: { email: adminEmail },
-  });
-
+  // 4. Map existing administrators to dynamic Super Admin role & Main Branch
+  const adminEmails = ['growxlabstech@gmail.com', 'saivarshith8284@gmail.com'];
   const passwordHash = await bcrypt.hash('admin123456', 12);
 
-  if (adminProfile) {
-    await prisma.profile.update({
-      where: { id: adminProfile.id },
-      data: {
-        roleId: dbRoles['SUPER_ADMIN'],
-        branchId: mainBranch.id,
-        passwordHash,
-      },
+  for (const email of adminEmails) {
+    const profile = await prisma.profile.findUnique({
+      where: { email },
     });
-    console.log(`Successfully mapped administrator profile to dynamic SUPER_ADMIN and branch MAIN and set password`);
-  } else {
-    // Create new admin
-    const newAdmin = await prisma.profile.create({
-      data: {
-        id: crypto.randomUUID(),
-        email: adminEmail,
-        fullName: 'Super Admin',
-        roleId: dbRoles['SUPER_ADMIN'],
-        branchId: mainBranch.id,
-        storeName: 'PVS Retail Supermarket',
-        passwordHash,
-      },
-    });
-    console.log(`Created new administrator profile: ${newAdmin.email}`);
+
+    if (profile) {
+      await prisma.profile.update({
+        where: { id: profile.id },
+        data: {
+          roleId: dbRoles['SUPER_ADMIN'],
+          branchId: mainBranch.id,
+          passwordHash,
+        },
+      });
+      console.log(`Successfully mapped administrator profile to dynamic SUPER_ADMIN and branch MAIN and set password for ${email}`);
+    } else {
+      // Create new admin
+      const newAdmin = await prisma.profile.create({
+        data: {
+          id: crypto.randomUUID(),
+          email,
+          fullName: email.split('@')[0] === 'growxlabstech' ? 'Growx Labs Admin' : 'Sai Varshith',
+          roleId: dbRoles['SUPER_ADMIN'],
+          branchId: mainBranch.id,
+          storeName: 'PVS Retail Supermarket',
+          passwordHash,
+        },
+      });
+      console.log(`Created new administrator profile: ${newAdmin.email}`);
+    }
   }
+
 
   console.log('Dynamic RBAC data seeded successfully!');
 
