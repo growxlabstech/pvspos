@@ -42,7 +42,7 @@ export function ReceiptPreview({
   const isControlledDialog = typeof open === 'boolean';
 
   const content = (
-    <div className="p-6 bg-white text-black font-mono text-xs space-y-4 rounded-xl border shadow-inner max-h-[60vh] overflow-y-auto">
+    <div className="printable-receipt p-6 bg-white text-black font-mono text-xs space-y-4 rounded-xl border shadow-inner max-h-[60vh] overflow-y-auto">
       {/* Header */}
       <div className="text-center space-y-1">
         <h2 className="font-bold text-base tracking-tight">PVS SUPERMARKET POS</h2>
