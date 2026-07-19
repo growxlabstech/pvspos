@@ -1,0 +1,234 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  CASHIER
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+}
+
+enum PaymentStatus {
+  COMPLETED
+  PENDING
+  FAILED
+}
+
+enum Unit {
+  PIECE
+  KG
+  GRAM
+  LITER
+  ML
+  DOZEN
+  BOX
+  PACK
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+
+model Profile {
+  id           String      @id @default(uuid()) @db.Uuid
+  fullName     String      @map("full_name")
+  email        String      @unique
+  role         Role        @default(OWNER)
+  avatarUrl    String?     @map("avatar_url")
+  storeName    String      @map("store_name")
+  storeAddress String?     @map("store_address")
+  phone        String?
+  gstNumber    String?     @map("gst_number")
+  currency     String      @default("INR")
+  taxRate      Decimal     @default(18) @map("tax_rate")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  
+  sales        Sale[]
+  auditLogs    AuditLog[]
+
+  @@map("profiles")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?   @map("image_url")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                String      @id @default(cuid())
+  name              String
+  sku               String      @unique
+  barcode           String?     @unique
+  description       String?
+  categoryId        String      @map("category_id")
+  price             Decimal
+  costPrice         Decimal     @default(0) @map("cost_price")
+  taxRate           Decimal     @default(18) @map("tax_rate")
+  unit              Unit        @default(PIECE)
+  imageUrl          String?     @map("image_url")
+  isActive          Boolean     @default(true) @map("is_active")
+  lowStockThreshold Int         @default(10) @map("low_stock_threshold")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  category          Category    @relation(fields: [categoryId], references: [id])
+  inventory         Inventory?
+  saleItems         SaleItem[]
+
+  @@index([barcode])
+  @@index([sku])
+  @@index([categoryId])
+  @@index([name])
+  @@map("products")
+}
+
+model Inventory {
+  id            String    @id @default(cuid())
+  productId     String    @unique @map("product_id")
+  quantity      Int       @default(0)
+  reorderPoint  Int       @default(10) @map("reorder_point")
+  lastRestocked DateTime? @map("last_restocked")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  product       Product   @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@map("inventories")
+}
+
+model Sale {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique @map("invoice_number")
+  subtotal       Decimal
+  taxAmount      Decimal       @map("tax_amount")
+  discountAmount Decimal       @default(0) @map("discount_amount")
+  total          Decimal
+  paymentMethod  PaymentMethod @map("payment_method")
+  paymentStatus  PaymentStatus @default(COMPLETED) @map("payment_status")
+  notes          String?
+  createdBy      String        @map("created_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  saleItems      SaleItem[]
+  profile        Profile       @relation(fields: [createdBy], references: [id])
+
+  @@index([createdAt])
+  @@index([invoiceNumber])
+  @@index([createdBy])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+  saleId      String   @map("sale_id")
+  productId   String   @map("product_id")
+  productName String   @map("product_name")
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price")
+  taxRate     Decimal  @map("tax_rate")
+  taxAmount   Decimal  @map("tax_amount")
+  discount    Decimal  @default(0)
+  total       Decimal
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  sale        Sale     @relation(fields: [saleId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String      @map("user_id") @db.Uuid
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String      @map("entity_id")
+  oldValues  Json?       @map("old_values")
+  newValues  Json?       @map("new_values")
+  ipAddress  String?     @map("ip_address")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  profile    Profile     @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+model AiRecognitionLog {
+  id               String    @id @default(cuid())
+  imageUrl         String?   @map("image_url")
+  detectedBarcode  String?   @map("detected_barcode")
+  aiSuggestedName  String?   @map("ai_suggested_name")
+  aiBrand          String?   @map("ai_brand")
+  aiCategory       String?   @map("ai_category")
+  aiConfidence     Float     @map("ai_confidence")
+  matchedProductId String?   @map("matched_product_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@map("ai_recognition_logs")
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  poNumber      String              @unique @map("po_number")
+  supplierName  String              @map("supplier_name")
+  invoiceNumber String?             @map("invoice_number")
+  status        PurchaseOrderStatus @default(DRAFT)
+  subtotal      Decimal
+  taxAmount     Decimal             @map("tax_amount")
+  total         Decimal
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  items         PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String        @map("purchase_order_id")
+  productName     String        @map("product_name")
+  quantity        Int
+  costPrice       Decimal       @map("cost_price")
+  total           Decimal
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
