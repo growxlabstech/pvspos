@@ -94,6 +94,21 @@ Respond ONLY with a JSON object of this structure:
 Do not format the JSON in markdown code blocks. Keep it raw JSON.
 `;
 
+// Helper to recursively convert BigInt fields to numbers/strings so JSON.stringify doesn't crash
+function serializeBigInt(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return Number(obj);
+  if (Array.isArray(obj)) return obj.map(serializeBigInt);
+  if (typeof obj === 'object') {
+    const res: any = {};
+    for (const key in obj) {
+      res[key] = serializeBigInt(obj[key]);
+    }
+    return res;
+  }
+  return obj;
+}
+
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();
@@ -182,7 +197,8 @@ export async function POST(request: Request) {
       if (isReadOnly && !hasMutators) {
         try {
           // Execute raw SQL securely
-          queryResultsData = await prisma.$queryRawUnsafe(sqlQuery);
+          const rawData = await prisma.$queryRawUnsafe(sqlQuery);
+          queryResultsData = serializeBigInt(rawData);
         } catch (dbErr: any) {
           console.warn('Prisma raw query failed:', dbErr.message);
           queryResultsData = { error: dbErr.message };

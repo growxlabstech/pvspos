@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Sheet,
@@ -32,6 +32,12 @@ export function AiCopilotDrawer() {
       text: 'Hello! I am your **PVS POS AI Copilot**. Ask me anything about your revenue, inventory, low stock items, or system commands!',
     },
   ]);
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -123,6 +129,7 @@ export function AiCopilotDrawer() {
               <span>AI Copilot thinking...</span>
             </div>
           )}
+          <div ref={chatEndRef} />
         </div>
 
         {/* Input Box */}
