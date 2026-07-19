@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { TrashIcon, PlusIcon, Loader2Icon, CheckIcon } from '@/components/icons';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ProductImageStudio } from '@/components/ui/product-image-studio';
 
 interface ImageUploaderProps {
   value?: string;
@@ -22,6 +23,10 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
   const [progress, setProgress] = useState(0);
   const [fileDetails, setFileDetails] = useState<{ name: string; size: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI Product Image Studio states
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [studioFile, setStudioFile] = useState<File | null>(null);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -46,43 +51,13 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
   const handleUpload = async (file: File) => {
     if (!validateFile(file)) return;
 
-    setIsUploading(true);
-    setProgress(20);
-
+    // Launch the AI Studio with the selected file instead of direct upload
     setFileDetails({
       name: file.name,
       size: formatFileSize(file.size),
     });
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      setProgress(50);
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      setProgress(80);
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to upload image');
-      }
-
-      setProgress(100);
-      onChange(data.url);
-      toast.success('Product image uploaded successfully!');
-    } catch (err: any) {
-      toast.error(err.message || 'Error uploading image');
-      setFileDetails(null);
-    } finally {
-      setIsUploading(false);
-      setProgress(0);
-    }
+    setStudioFile(file);
+    setIsStudioOpen(true);
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -166,6 +141,18 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => {
+                setStudioFile(null);
+                setIsStudioOpen(true);
+              }}
+              disabled={disabled || isUploading}
+              className="p-2 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+              title="Enhance image with AI"
+            >
+              ✨ AI Studio
+            </button>
+            <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || isUploading}
               className="p-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors cursor-pointer"
@@ -234,6 +221,18 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
           )}
         </div>
       )}
+
+      {/* AI Product Image Studio dialog */}
+      <ProductImageStudio
+        open={isStudioOpen}
+        onOpenChange={setIsStudioOpen}
+        originalFile={studioFile}
+        existingImageUrl={value}
+        onEnhanced={(url) => {
+          onChange(url);
+          setFileDetails(prev => prev || { name: 'Enhanced Product Image', size: 'Optimized WebP' });
+        }}
+      />
     </div>
   );
 }
