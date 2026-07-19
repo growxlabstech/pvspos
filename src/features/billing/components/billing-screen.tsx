@@ -54,6 +54,8 @@ export function BillingScreen() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items, customer, holdBill, completedSale]);
 
+  const [activeTab, setActiveTab] = useState<'products' | 'cart'>('products');
+
   const handleSaleSuccess = (saleData: any) => {
     setCompletedSale(saleData);
     setIsReceiptOpen(true);
@@ -62,10 +64,10 @@ export function BillingScreen() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-background">
       {/* Top Action Header */}
-      <div className="px-4 py-2 bg-card border-b flex justify-between items-center text-xs shrink-0">
+      <div className="px-4 py-2 bg-card border-b flex flex-wrap justify-between items-center gap-2 text-xs shrink-0">
         <div className="flex items-center gap-3">
           <span className="font-bold text-sm text-primary">⚡ PVS POS Terminal 01</span>
-          <span className="text-muted-foreground">• Active Shift: Morning</span>
+          <span className="hidden sm:inline text-muted-foreground">• Active Shift: Morning</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -73,20 +75,53 @@ export function BillingScreen() {
             onClick={() => setIsCashDrawerOpen(true)}
             className="px-2.5 py-1 rounded-lg border bg-accent/30 hover:bg-accent text-foreground font-semibold cursor-pointer"
           >
-            💵 Cash Drawer Report
+            💵 Drawer Report
           </button>
         </div>
       </div>
 
-      {/* Main Split Interface */}
+      {/* Mobile Tab Switcher (Visible only on mobile/tablet < md) */}
+      <div className="md:hidden flex border-b bg-card shrink-0">
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`flex-1 py-3 text-center text-sm font-bold border-b-2 transition-all ${
+            activeTab === 'products'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          📦 Products
+        </button>
+        <button
+          onClick={() => setActiveTab('cart')}
+          className={`flex-1 py-3 text-center text-sm font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'cart'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          🛒 Cart
+          {items.length > 0 && (
+            <span className="bg-primary text-primary-foreground text-[10px] font-extrabold px-1.5 py-0.5 rounded-full">
+              {items.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Main Split / Tabbed Interface */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-12 overflow-hidden">
         {/* Left Product Catalog Column */}
-        <div className="md:col-span-7 lg:col-span-8 h-full overflow-hidden">
+        <div className={`md:col-span-7 lg:col-span-8 h-full overflow-hidden ${
+          activeTab === 'products' ? 'block' : 'hidden md:block'
+        }`}>
           <ProductSearch />
         </div>
 
         {/* Right Active Cart Column */}
-        <div className="md:col-span-5 lg:col-span-4 h-full overflow-hidden">
+        <div className={`md:col-span-5 lg:col-span-4 h-full overflow-hidden ${
+          activeTab === 'cart' ? 'block' : 'hidden md:block'
+        }`}>
           <CartPanel
             onOpenPayment={() => setIsPaymentOpen(true)}
             onOpenCustomer={() => setIsCustomerOpen(true)}

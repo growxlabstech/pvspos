@@ -16,7 +16,7 @@ export function HotkeysBar({
   onPaymentOpen,
 }: HotkeysBarProps) {
   return (
-    <div className="bg-card border-t px-4 py-2 flex items-center justify-between text-xs text-muted-foreground overflow-x-auto gap-4 shrink-0 select-none">
+    <div className="hidden md:flex bg-card border-t px-4 py-2 items-center justify-between text-xs text-muted-foreground overflow-x-auto gap-4 shrink-0 select-none">
       <div className="flex items-center gap-4">
         <button
           onClick={onSearchFocus}
