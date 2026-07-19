@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma/client';
 import { getSessionUser } from '@/lib/auth/session';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+import { routerService } from '@/lib/ai/router';
 
 // Minimal schema summary for Gemini context
 const DB_SCHEMA_PROMPT = `
@@ -124,44 +124,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
     }
 
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json({
-        reply: 'AI Assistant key is missing. Please configure GEMINI_API_KEY to activate your Business Copilot.',
+    // Step 1: Call Multi-model Router to decide if we need a database query
+    let classText = '{}';
+    try {
+      const classResponse = await routerService.generate({
+        systemPrompt: DB_SCHEMA_PROMPT,
+        prompt: `User request: "${queryText}"`
       });
+      classText = classResponse.text || '{}';
+    } catch (err: any) {
+      console.warn('[AI-Router] Classification step failed, falling back to basic layout:', err.message);
     }
 
-    // Step 1: Call Gemini to decide if we need a database query
-    const classificationResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: DB_SCHEMA_PROMPT },
-                { text: `User request: "${queryText}"` }
-              ]
-            }
-          ]
-        }),
-      }
-    );
-
-    if (!classificationResponse.ok) {
-      let errText = '';
-      try {
-        const errJson = await classificationResponse.json();
-        errText = errJson.error?.message || JSON.stringify(errJson);
-      } catch {
-        errText = await classificationResponse.text();
-      }
-      throw new Error(`Gemini Classification failed: ${errText}`);
-    }
-
-    const classData = await classificationResponse.json();
-    const classText = classData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const cleanedClassJson = classText.replace(/```json/g, '').replace(/```/g, '').trim();
     
     let analysisResult: {
@@ -208,18 +182,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Step 3: Call Gemini again to format the final reply using the queried database results
-    const finalAnswerResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `You are the PVS POS Enterprise AI Store Manager. Your task is to compile a structured, visual response for the user's request.
+    // Step 3: Call Multi-model Router again to format the final reply
+    const finalPrompt = `You are the PVS POS Enterprise AI Store Manager. Your task is to compile a structured, visual response for the user's request.
 We want to present high-value business insights using structured layouts (KPI cards, tables, charts, timeline, recommendations, and next-action suggestions).
 
 Based on the user's request and the database results (if any), compile a JSON response matching the following schema.
@@ -291,28 +255,13 @@ Guidance for layout selection:
 Input data to build response from:
 User Request: "${queryText}"
 Database query run: "${analysisResult.query || 'None'}"
-Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetched')}`
-                }
-              ]
-            }
-          ]
-        }),
-      }
-    );
+Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetched')}`;
 
-    if (!finalAnswerResponse.ok) {
-      let errText = '';
-      try {
-        const errJson = await finalAnswerResponse.json();
-        errText = errJson.error?.message || JSON.stringify(errJson);
-      } catch {
-        errText = await finalAnswerResponse.text();
-      }
-      throw new Error(`Gemini Final Response failed: ${errText}`);
-    }
+    const finalAnswerResponse = await routerService.generate({
+      prompt: finalPrompt
+    });
 
-    const finalData = await finalAnswerResponse.json();
-    const replyText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const replyText = finalAnswerResponse.text || '{}';
     const cleanedReplyJson = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let parsedResponse;
@@ -338,6 +287,14 @@ Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetche
 
   } catch (error: any) {
     console.error('POST /api/assistant/chat error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    // Standard system failure prompt (never expose raw rate-limit / API errors)
+    return NextResponse.json({ 
+      reply: "I'm temporarily having trouble reaching the AI service. Please try again in a few moments.",
+      layout: { type: 'NONE' },
+      suggestions: [
+        { label: 'Check Low Stock', command: 'Show low stock products' },
+        { label: 'Show Sales Summary', command: 'Show store performance summary' }
+      ]
+    });
   }
 }
