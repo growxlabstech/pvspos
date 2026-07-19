@@ -12,6 +12,7 @@ import {
   WarehouseIcon,
   ReceiptIcon,
   SettingsIcon,
+  UserIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@/components/icons';
@@ -24,8 +25,10 @@ const navItems = [
   { title: 'Categories', href: '/categories', icon: TagsIcon },
   { title: 'Inventory', href: '/inventory', icon: WarehouseIcon },
   { title: 'Sales', href: '/sales', icon: ReceiptIcon },
+  { title: 'Users', href: '/users', icon: UserIcon },
   { title: 'Settings', href: '/settings', icon: SettingsIcon },
 ];
+
 
 export function Sidebar() {
   const pathname = usePathname();

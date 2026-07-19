@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { productService } from '@/features/products/services/product.service';
 import { createProductSchema } from '@/features/products/schemas/product.schema';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { verifyPermission } from '@/lib/auth/rbac';
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const verified = await verifyPermission('PRODUCTS_VIEW');
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || undefined;
@@ -21,9 +22,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const verified = await verifyPermission('PRODUCTS_CREATE');
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const body = await req.json();
     const validatedData = createProductSchema.parse(body);
@@ -34,3 +36,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
+

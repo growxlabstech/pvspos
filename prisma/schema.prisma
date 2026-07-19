@@ -40,6 +40,11 @@ enum AuditAction {
   CREATE
   UPDATE
   DELETE
+  LOGIN
+  LOGOUT
+  FAILED_LOGIN
+  PASSWORD_RESET
+  PERMISSION_CHANGE
 }
 
 enum PurchaseOrderStatus {
@@ -49,11 +54,69 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+model Branch {
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  address   String?
+  city      String?
+  phone     String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  profiles  Profile[]
+
+  @@map("branches")
+}
+
+model AppRole {
+  id          String           @id @default(cuid())
+  name        String
+  code        String           @unique
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  profiles    Profile[]
+
+  @@map("app_roles")
+}
+
+model AppPermission {
+  id          String           @id @default(cuid())
+  module      String
+  action      String
+  code        String           @unique
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  roles       RolePermission[]
+
+  @@map("app_permissions")
+}
+
+model RolePermission {
+  id           String        @id @default(cuid())
+  roleId       String        @map("role_id")
+  permissionId String        @map("permission_id")
+
+  role         AppRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   AppPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
 model Profile {
   id           String      @id @default(uuid()) @db.Uuid
   fullName     String      @map("full_name")
   email        String      @unique
   role         Role        @default(OWNER)
+  roleId       String?     @map("role_id")
+  branchId     String?     @map("branch_id")
   avatarUrl    String?     @map("avatar_url")
   storeName    String      @map("store_name")
   storeAddress String?     @map("store_address")
@@ -61,9 +124,13 @@ model Profile {
   gstNumber    String?     @map("gst_number")
   currency     String      @default("INR")
   taxRate      Decimal     @default(18) @map("tax_rate")
+  isActive     Boolean     @default(true) @map("is_active")
+  lastLogin    DateTime?   @map("last_login")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   
+  appRole      AppRole?    @relation(fields: [roleId], references: [id])
+  branch       Branch?     @relation(fields: [branchId], references: [id])
   sales        Sale[]
   auditLogs    AuditLog[]
 

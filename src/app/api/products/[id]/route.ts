@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { productService } from '@/features/products/services/product.service';
 import { updateProductSchema } from '@/features/products/schemas/product.schema';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { verifyPermission } from '@/lib/auth/rbac';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -9,9 +9,10 @@ type RouteContext = {
 
 export async function GET(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const verified = await verifyPermission('PRODUCTS_VIEW');
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const resolvedParams = await params;
     const product = await productService.getById(resolvedParams.id);
@@ -25,9 +26,10 @@ export async function GET(req: Request, { params }: RouteContext) {
 
 export async function PUT(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const verified = await verifyPermission('PRODUCTS_UPDATE');
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const resolvedParams = await params;
     const body = await req.json();
@@ -42,9 +44,10 @@ export async function PUT(req: Request, { params }: RouteContext) {
 
 export async function DELETE(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const verified = await verifyPermission('PRODUCTS_DELETE');
+    if (!verified) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const resolvedParams = await params;
     await productService.delete(resolvedParams.id);
@@ -53,3 +56,4 @@ export async function DELETE(req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
+

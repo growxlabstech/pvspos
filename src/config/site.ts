@@ -1,5 +1,6 @@
 export const siteConfig = {
   name: 'PVS POS',
-  description: 'Modern Point of Sale System for Retail Businesses',
-  url: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+  description: 'Enterprise AI Smart Point of Sale Platform',
+  url: process.env.NEXT_PUBLIC_APP_URL ?? 'https://pvs.martt.growxlabs.tech',
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? 'https://pvs.martt.growxlabs.tech',
 } as const;
