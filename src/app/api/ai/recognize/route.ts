@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { analyzeProductImage } from '@/lib/ai/vision-service';
 import { prisma } from '@/lib/prisma/client';
+import { getSessionUser } from '@/lib/auth/session';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

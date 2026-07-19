@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
+
 
 async function main() {
   console.log('Seeding Dynamic RBAC system data...');
@@ -134,18 +137,36 @@ async function main() {
     where: { email: adminEmail },
   });
 
+  const passwordHash = await bcrypt.hash('admin123456', 12);
+
   if (adminProfile) {
     await prisma.profile.update({
       where: { id: adminProfile.id },
       data: {
         roleId: dbRoles['SUPER_ADMIN'],
         branchId: mainBranch.id,
+        passwordHash,
       },
     });
-    console.log(`Successfully mapped administrator profile to dynamic SUPER_ADMIN and branch MAIN`);
+    console.log(`Successfully mapped administrator profile to dynamic SUPER_ADMIN and branch MAIN and set password`);
+  } else {
+    // Create new admin
+    const newAdmin = await prisma.profile.create({
+      data: {
+        id: crypto.randomUUID(),
+        email: adminEmail,
+        fullName: 'Super Admin',
+        roleId: dbRoles['SUPER_ADMIN'],
+        branchId: mainBranch.id,
+        storeName: 'PVS Retail Supermarket',
+        passwordHash,
+      },
+    });
+    console.log(`Created new administrator profile: ${newAdmin.email}`);
   }
 
   console.log('Dynamic RBAC data seeded successfully!');
+
 }
 
 main()

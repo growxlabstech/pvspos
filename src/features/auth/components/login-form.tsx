@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loginSchema, type LoginInput } from '../schemas/auth.schema';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+
 
 export function LoginForm() {
   const router = useRouter();
@@ -33,14 +33,15 @@ export function LoginForm() {
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
       });
 
-      if (error) {
-        toast.error(error.message);
+      if (!res.ok) {
+        const errorData = await res.json();
+        toast.error(errorData.error || 'Invalid credentials');
         return;
       }
 
@@ -53,6 +54,7 @@ export function LoginForm() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <motion.div

@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getSessionUser } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma/client';
 
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
 
     const permissions = await prisma.appPermission.findMany({
       orderBy: [{ module: 'asc' }, { action: 'asc' }],

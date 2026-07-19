@@ -1,27 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma/client';
 import { updateSettingsSchema } from '@/features/settings/schemas/settings.schema';
+import { getSessionUser } from '@/lib/auth/session';
 
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     let profile = await prisma.profile.findUnique({
-      where: { id: user.id },
+      where: { id: user.userId },
     });
 
     if (!profile) {
       profile = await prisma.profile.create({
         data: {
-          id: user.id,
+          id: user.userId,
           email: user.email || '',
-          fullName: user.user_metadata?.full_name || 'Store Admin',
+          fullName: 'Store Admin',
           storeName: 'PVS Retail Supermarket',
           currency: 'INR',
           taxRate: 18.0,
@@ -38,10 +37,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -56,7 +54,7 @@ export async function PUT(request: Request) {
     }
 
     const updatedProfile = await prisma.profile.upsert({
-      where: { id: user.id },
+      where: { id: user.userId },
       update: {
         fullName: validation.data.fullName,
         storeName: validation.data.storeName,
@@ -67,7 +65,7 @@ export async function PUT(request: Request) {
         taxRate: validation.data.taxRate,
       },
       create: {
-        id: user.id,
+        id: user.userId,
         email: user.email || '',
         fullName: validation.data.fullName,
         storeName: validation.data.storeName,
@@ -85,3 +83,4 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+

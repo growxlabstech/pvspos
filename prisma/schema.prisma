@@ -129,10 +129,20 @@ model Profile {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   
+  passwordHash String?     @map("password_hash")
+  createdBy    String?     @map("created_by")
+  updatedBy    String?     @map("updated_by")
+
   appRole      AppRole?    @relation(fields: [roleId], references: [id])
   branch       Branch?     @relation(fields: [branchId], references: [id])
   sales        Sale[]
   auditLogs    AuditLog[]
+
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  loginHistories     LoginHistory[]
+  passwordResets     PasswordResetToken[]
+  emailVerifications EmailVerificationToken[]
 
   @@map("profiles")
 }
@@ -246,6 +256,8 @@ model AuditLog {
   oldValues  Json?       @map("old_values")
   newValues  Json?       @map("new_values")
   ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  device     String?
   createdAt  DateTime    @default(now()) @map("created_at")
 
   profile    Profile     @relation(fields: [userId], references: [id])
@@ -298,4 +310,79 @@ model PurchaseOrderItem {
 
   @@index([purchaseOrderId])
   @@map("purchase_order_items")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  device    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id") @db.Uuid
+  email     String
+  status    String   // SUCCESS, FAILED, LOCKOUT
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  device    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile   Profile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("login_history")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile   Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }

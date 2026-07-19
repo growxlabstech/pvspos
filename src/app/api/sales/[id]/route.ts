@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { salesService } from '@/features/sales/services/sales.service';
+import { getSessionUser } from '@/lib/auth/session';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -10,6 +11,11 @@ export async function GET(
   { params }: RouteContext
 ) {
   try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const sale = await salesService.getById(id);
     if (!sale) {
@@ -20,3 +26,4 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

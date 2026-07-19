@@ -12,22 +12,23 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MobileSidebar } from './mobile-sidebar';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+
 
 export function Navbar() {
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      const supabase = createSupabaseBrowserClient();
-      await supabase.auth.signOut();
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!res.ok) throw new Error();
       router.push('/login');
       router.refresh();
     } catch {
       toast.error('Failed to logout');
     }
   };
+
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 md:px-6 bg-card border-b border-border">

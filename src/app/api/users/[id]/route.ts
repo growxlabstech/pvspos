@@ -1,18 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma/client';
 import { hasPermission, logAuditEvent } from '@/lib/auth/rbac';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+import { getSessionUser } from '@/lib/auth/session';
+import { hashPassword } from '@/lib/auth/service';
 
 export async function PUT(
   request: Request,
@@ -20,14 +10,13 @@ export async function PUT(
 ) {
   try {
     const { id: targetUserId } = await params;
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -43,20 +32,9 @@ export async function PUT(
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
     }
 
-    // Update in Supabase Auth if password or active status changes
-    if (password || typeof isActive === 'boolean') {
-      const authUpdates: any = {};
-      if (password) authUpdates.password = password;
-      if (typeof isActive === 'boolean') {
-        // Toggle user ban/unban status in Supabase auth
-        const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(
-          targetUserId,
-          typeof isActive === 'boolean' ? { ban_duration: isActive ? 'none' : '1000h' } : {}
-        );
-        if (banError) {
-          console.warn('Supabase Auth update error (non-fatal):', banError.message);
-        }
-      }
+    let passwordHash = undefined;
+    if (password) {
+      passwordHash = await hashPassword(password);
     }
 
     // Update profile in database
@@ -68,12 +46,13 @@ export async function PUT(
         branchId: branchId !== undefined ? branchId : oldProfile.branchId,
         phone: phone !== undefined ? phone : oldProfile.phone,
         isActive: isActive !== undefined ? isActive : oldProfile.isActive,
+        passwordHash: passwordHash !== undefined ? passwordHash : oldProfile.passwordHash,
       },
     });
 
     // Log the user update audit event
     await logAuditEvent(
-      user.id,
+      user.userId,
       'UPDATE',
       'Profile',
       targetUserId,
@@ -94,14 +73,13 @@ export async function DELETE(
 ) {
   try {
     const { id: targetUserId } = await params;
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -114,9 +92,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
     }
 
-    // Disable the user in both Supabase Auth and Local Profile
-    await supabaseAdmin.auth.admin.updateUserById(targetUserId, { ban_duration: '1000h' });
-
     const disabledProfile = await prisma.profile.update({
       where: { id: targetUserId },
       data: { isActive: false },
@@ -124,7 +99,7 @@ export async function DELETE(
 
     // Log audit event
     await logAuditEvent(
-      user.id,
+      user.userId,
       'DELETE',
       'Profile',
       targetUserId,
@@ -138,3 +113,4 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+

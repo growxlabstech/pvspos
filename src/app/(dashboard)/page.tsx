@@ -2,12 +2,11 @@ import { DashboardShell } from '@/components/layout/dashboard-shell';
 import { DashboardStats } from '@/features/dashboard/components/dashboard-stats';
 import { RecentSales } from '@/features/dashboard/components/recent-sales';
 import { QuickActions } from '@/features/dashboard/components/quick-actions';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getSessionUser } from '@/lib/auth/session';
 import { dashboardService } from '@/features/dashboard/services/dashboard.service';
 
 export default async function DashboardPage() {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   // Default stats for when there's no user or no data yet
   const defaultStats = {
@@ -25,13 +24,14 @@ export default async function DashboardPage() {
   if (user) {
     try {
       [stats, recentSales] = await Promise.all([
-        dashboardService.getStats(user.id),
-        dashboardService.getRecentSales(user.id),
+        dashboardService.getStats(user.userId),
+        dashboardService.getRecentSales(user.userId),
       ]);
     } catch {
       // Use defaults if DB is not set up yet
     }
   }
+
 
   const serializedSales = recentSales.map((sale) => ({
     ...sale,

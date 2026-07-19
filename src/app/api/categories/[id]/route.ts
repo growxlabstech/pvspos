@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { categoryService } from '@/features/categories/services/category.service';
 import { updateCategorySchema } from '@/features/categories/schemas/category.schema';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getSessionUser } from '@/lib/auth/session';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -9,8 +9,7 @@ type RouteContext = {
 
 export async function GET(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const resolvedParams = await params;
@@ -25,8 +24,7 @@ export async function GET(req: Request, { params }: RouteContext) {
 
 export async function PUT(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const resolvedParams = await params;
@@ -42,8 +40,7 @@ export async function PUT(req: Request, { params }: RouteContext) {
 
 export async function DELETE(req: Request, { params }: RouteContext) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const resolvedParams = await params;
@@ -53,3 +50,4 @@ export async function DELETE(req: Request, { params }: RouteContext) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }
+

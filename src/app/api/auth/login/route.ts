@@ -1,6 +1,7 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { loginSchema } from '@/features/auth/schemas/auth.schema';
-import { NextRequest } from 'next/server';
+import { authenticateUser } from '@/lib/auth/service';
+import { setAuthCookies } from '@/lib/auth/session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,29 +9,34 @@ export async function POST(request: NextRequest) {
     const parsed = loginSchema.safeParse(body);
 
     if (!parsed.success) {
-      return Response.json(
-        { error: 'Invalid credentials', details: parsed.error.flatten().fieldErrors },
+      return NextResponse.json(
+        { error: 'Invalid input parameters', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
 
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
+    // Get IP and user-agent metadata
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const userAgent = request.headers.get('user-agent') || 'Unknown';
+    const isMobile = /mobile/i.test(userAgent);
+    const device = isMobile ? 'Mobile Device' : 'Desktop Browser';
 
-    if (error) {
-      return Response.json({ error: error.message }, { status: 401 });
-    }
+    const { user, accessToken, refreshToken } = await authenticateUser(
+      parsed.data.email,
+      parsed.data.password,
+      { ip, userAgent, device }
+    );
 
-    return Response.json({
+    // Set HTTP-only secure cookies
+    await setAuthCookies(accessToken, refreshToken, true);
+
+    return NextResponse.json({
       data: {
-        user: data.user,
-        session: data.session,
+        user,
       },
     });
-  } catch {
-    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Custom Auth POST Login error:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 401 });
   }
 }

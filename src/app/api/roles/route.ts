@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma/client';
 import { hasPermission, logAuditEvent } from '@/lib/auth/rbac';
+import { getSessionUser } from '@/lib/auth/session';
 
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -32,14 +31,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -75,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     await logAuditEvent(
-      user.id,
+      user.userId,
       'CREATE',
       'AppRole',
       newRole.id,
@@ -92,14 +90,13 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -150,7 +147,7 @@ export async function PUT(request: Request) {
     }
 
     await logAuditEvent(
-      user.id,
+      user.userId,
       'PERMISSION_CHANGE',
       'AppRole',
       roleId,
@@ -164,3 +161,4 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+

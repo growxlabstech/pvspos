@@ -65,7 +65,9 @@ export async function logAuditEvent(
   entityId: string,
   oldValues?: any,
   newValues?: any,
-  ipAddress?: string
+  ipAddress?: string,
+  userAgent?: string,
+  device?: string
 ) {
   try {
     await prisma.auditLog.create({
@@ -77,6 +79,8 @@ export async function logAuditEvent(
           oldValues: oldValues ? JSON.parse(JSON.stringify(oldValues)) : undefined,
           newValues: newValues ? JSON.parse(JSON.stringify(newValues)) : undefined,
           ipAddress,
+          userAgent,
+          device,
         },
       });
   } catch (error) {
@@ -88,15 +92,15 @@ export async function logAuditEvent(
  * Enforces dynamic permission checks at the API Route level.
  */
 export async function verifyPermission(permissionCode: string): Promise<{ userId: string } | null> {
-  const { createSupabaseServerClient } = await import('@/lib/supabase/server');
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { getSessionUser } = await import('./session');
+  const user = await getSessionUser();
 
   if (!user) return null;
 
-  const isAllowed = await hasPermission(user.id, permissionCode);
+  const isAllowed = await hasPermission(user.userId, permissionCode);
   if (!isAllowed) return null;
 
-  return { userId: user.id };
+  return { userId: user.userId };
 }
+
 

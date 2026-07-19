@@ -1,31 +1,20 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma/client';
 import { hasPermission, logAuditEvent } from '@/lib/auth/rbac';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-// Initialize admin client for creating/managing users
-const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+import { getSessionUser } from '@/lib/auth/session';
+import { hashPassword } from '@/lib/auth/service';
+import crypto from 'crypto';
 
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if caller has USERS_MANAGE permission
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -51,14 +40,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const user = await getSessionUser();
 
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const canManage = await hasPermission(user.id, 'USERS_MANAGE');
+    const canManage = await hasPermission(user.userId, 'USERS_MANAGE');
     if (!canManage) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -70,41 +58,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Create user in Supabase Auth using admin client
-    const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-    });
+    const lowercaseEmail = email.toLowerCase().trim();
 
-    if (createError || !authData.user) {
-      return NextResponse.json({ error: createError?.message || 'Failed to create user in Auth' }, { status: 400 });
+    // Check if user already exists
+    const existing = await prisma.profile.findUnique({
+      where: { email: lowercaseEmail },
+    });
+    if (existing) {
+      return NextResponse.json({ error: 'Email address already registered' }, { status: 400 });
     }
 
-    const newUserId = authData.user.id;
+    // Hash the password with bcrypt (salt 12)
+    const passwordHash = await hashPassword(password);
+    const newUserId = crypto.randomUUID();
 
     // Create profile in database
     const profile = await prisma.profile.create({
       data: {
         id: newUserId,
-        email,
+        email: lowercaseEmail,
         fullName,
         roleId,
         branchId: branchId || null,
         phone: phone || null,
         storeName: storeName || 'PVS Retail Supermarket',
+        passwordHash,
       },
     });
 
     // Log the user creation audit event
     await logAuditEvent(
-      user.id,
+      user.userId,
       'CREATE',
       'Profile',
       newUserId,
       null,
-      { email, fullName, roleId, branchId }
+      { email: lowercaseEmail, fullName, roleId, branchId }
     );
 
     return NextResponse.json(profile);
@@ -113,3 +102,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
