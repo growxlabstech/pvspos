@@ -317,11 +317,13 @@ export const productService = {
   async create(data: CreateProductInput) {
     // Auto-generate SKU if not provided
     const sku = data.sku && data.sku.trim() !== '' ? data.sku : await generateSku(data.categoryId);
+    const barcode = data.barcode && data.barcode.trim() !== '' ? data.barcode : null;
 
     const product = await prisma.product.create({
       data: {
         ...data,
         sku,
+        barcode,
         inventory: {
           create: { quantity: 0 },
         },
@@ -338,9 +340,16 @@ export const productService = {
 
 
   async update(id: string, data: UpdateProductInput) {
+    const barcode = data.barcode !== undefined
+      ? (data.barcode && data.barcode.trim() !== '' ? data.barcode : null)
+      : undefined;
+
     const product = await prisma.product.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        barcode,
+      },
       include: { category: true, inventory: true },
     });
     return {
