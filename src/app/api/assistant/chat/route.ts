@@ -219,12 +219,77 @@ export async function POST(request: Request) {
             {
               parts: [
                 {
-                  text: `You are the Business Copilot for PVS POS.
-Answer the user's business request professionally and concisely.
-If database results are provided, explain them clearly, format stats in bold/tables, and provide smart business advice based on them.
-If there are errors or no data, notify the user helpfully.
+                  text: `You are the PVS POS Enterprise AI Store Manager. Your task is to compile a structured, visual response for the user's request.
+We want to present high-value business insights using structured layouts (KPI cards, tables, charts, timeline, recommendations, and next-action suggestions).
 
-User request: "${queryText}"
+Based on the user's request and the database results (if any), compile a JSON response matching the following schema.
+Do not wrap it in markdown code blocks. Return ONLY the raw JSON string.
+
+Schema:
+{
+  "reply": "Friendly, professional, human-like summary explanation of the results. Address the user directly. Never answer with dry lists; synthesize the information as a real store manager would. Notice low inventory, point out trends, and suggest actions.",
+  "action": {
+    "type": "NAVIGATE", // optional
+    "payload": "/inventory" // optional path to redirect to: "/billing", "/products", "/inventory", "/sales", "/settings"
+  },
+  "layout": {
+    "type": "EXECUTIVE_SUMMARY" | "TABLE" | "CHART" | "TIMELINE" | "ALERTS" | "RECOMMENDATIONS" | "NONE",
+    
+    // Fill this ONLY if type is "EXECUTIVE_SUMMARY"
+    "kpis": [
+      { "label": "Revenue", "value": "₹4,250", "change": "+8%", "trend": "up" } // trend can be "up", "down", "neutral"
+    ],
+    
+    // Fill this ONLY if type is "TABLE"
+    "table": {
+      "headers": ["Product Name", "SKU", "Stock", "Status"],
+      "rows": [
+        { "Product Name": "Colgate Toothpaste", "SKU": "PVS-GROC-00001", "Stock": 2, "Status": "Low Stock" }
+      ]
+    },
+    
+    // Fill this ONLY if type is "CHART"
+    "chart": {
+      "type": "BAR", // can be "BAR", "LINE", "PIE", "AREA"
+      "title": "Weekly Sales Trend",
+      "data": [
+        { "name": "Mon", "value": 1500 },
+        { "name": "Tue", "value": 2400 }
+      ]
+    },
+    
+    // Fill this ONLY if type is "TIMELINE"
+    "timeline": [
+      { "title": "Activity Title", "time": "2 hours ago", "description": "Sold 5 items", "status": "success" } // status can be "success", "warning", "info"
+    ],
+    
+    // Fill this ONLY if type is "ALERTS"
+    "alerts": [
+      { "type": "WARNING", "message": "Alert message text" } // type can be "CRITICAL", "WARNING", "SUCCESS", "INFO"
+    ],
+    
+    // Fill this ONLY if type is "RECOMMENDATIONS"
+    "recommendations": [
+      { "text": "Recommendation item", "checked": false }
+    ]
+  },
+  
+  // Provide 2-3 smart contextual follow-up suggestions/questions the user can click next
+  "suggestions": [
+    { "label": "Check Low Stock", "command": "Show low stock products" }
+  ]
+}
+
+Guidance for layout selection:
+- If the database response has list data (like a list of products, invoices, or transactions), use "TABLE". Limit the number of rows to 10 for best visual layout. Include columns that are relevant and format currency values as ₹.
+- If the user asks for financial performance, sales counts, or general store health, use "EXECUTIVE_SUMMARY" to show key indicators.
+- If the user asks for trends over time, sales by category, or relative comparisons, use "CHART".
+- If the user is asking about stock alerts or critical problems, use "ALERTS".
+- If the user asks for recommendations, analysis, or what to do next, use "RECOMMENDATIONS".
+- Otherwise, use "NONE".
+
+Input data to build response from:
+User Request: "${queryText}"
 Database query run: "${analysisResult.query || 'None'}"
 Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetched')}`
                 }
@@ -247,11 +312,28 @@ Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetche
     }
 
     const finalData = await finalAnswerResponse.json();
-    const replyText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I encountered an issue compiling the response.';
+    const replyText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const cleanedReplyJson = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(cleanedReplyJson);
+    } catch {
+      parsedResponse = {
+        reply: replyText,
+        layout: { type: 'NONE' },
+        suggestions: [
+          { label: 'Check Low Stock', command: 'Show low stock products' },
+          { label: 'Show Sales Summary', command: 'Show store performance summary' }
+        ]
+      };
+    }
 
     return NextResponse.json({
-      reply: replyText,
-      action: analysisResult.action || null,
+      reply: parsedResponse.reply || cleanedReplyJson,
+      layout: parsedResponse.layout || null,
+      suggestions: parsedResponse.suggestions || null,
+      action: parsedResponse.action || analysisResult.action || null,
     });
 
   } catch (error: any) {
