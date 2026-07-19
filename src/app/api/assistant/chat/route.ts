@@ -2,6 +2,98 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma/client';
 import { getSessionUser } from '@/lib/auth/session';
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
+// Minimal schema summary for Gemini context
+const DB_SCHEMA_PROMPT = `
+You are the AI Business Pilot for PVS POS, a retail supermarket management system.
+You can query the database using standard PostgreSQL SELECT queries.
+Here is the database schema:
+
+1. table "profiles" (users/employees):
+   - "id" (uuid)
+   - "full_name" (text)
+   - "email" (text)
+   - "role" ('OWNER', 'MANAGER', 'CASHIER')
+   - "store_name" (text)
+   - "store_address" (text)
+   - "phone" (text)
+   - "gst_number" (text)
+   - "currency" (text)
+   - "tax_rate" (numeric)
+   - "is_active" (boolean)
+   - "created_at" (timestamp)
+
+2. table "categories":
+   - "id" (text, CUID)
+   - "name" (text)
+   - "slug" (text)
+   - "is_active" (boolean)
+
+3. table "products":
+   - "id" (text, CUID)
+   - "name" (text)
+   - "sku" (text)
+   - "barcode" (text)
+   - "category_id" (text, links to categories.id)
+   - "price" (numeric)
+   - "cost_price" (numeric)
+   - "tax_rate" (numeric)
+   - "unit" ('PIECE', 'KG', 'GRAM', 'LITER', 'ML', 'DOZEN', 'BOX', 'PACK')
+   - "is_active" (boolean)
+   - "low_stock_threshold" (integer)
+
+4. table "inventories" (stock level per product):
+   - "id" (text, CUID)
+   - "product_id" (text, links to products.id)
+   - "quantity" (integer)
+   - "reorder_point" (integer)
+
+5. table "sales" (checkout invoices):
+   - "id" (text, CUID)
+   - "invoice_number" (text)
+   - "subtotal" (numeric)
+   - "tax_amount" (numeric)
+   - "discount_amount" (numeric)
+   - "total" (numeric)
+   - "payment_method" ('CASH', 'UPI')
+   - "payment_status" ('COMPLETED', 'PENDING', 'FAILED')
+   - "created_by" (uuid, links to profiles.id)
+   - "created_at" (timestamp)
+
+6. table "sale_items" (items inside each sale):
+   - "id" (text, CUID)
+   - "sale_id" (text, links to sales.id)
+   - "product_id" (text, links to products.id)
+   - "product_name" (text)
+   - "quantity" (integer)
+   - "unit_price" (numeric)
+   - "tax_rate" (numeric)
+   - "tax_amount" (numeric)
+   - "discount" (numeric)
+   - "total" (numeric)
+
+Your task:
+Analyze the user's message and determine if answering it requires querying the database.
+If yes, write a clean, optimized PostgreSQL SELECT query.
+If the query is comparing dates, use CURRENT_DATE or date functions. For example:
+- Today's sales: "created_at >= CURRENT_DATE" or "created_at >= NOW() - INTERVAL '1 day'"
+- Sales this week: "created_at >= NOW() - INTERVAL '7 days'"
+- Profits: "SUM((unit_price - COALESCE(p.cost_price, 0)) * si.quantity) FROM sale_items si JOIN products p ON si.product_id = p.id"
+
+Respond ONLY with a JSON object of this structure:
+{
+  "needsQuery": true/false,
+  "query": "SQL SELECT query or empty string",
+  "explanation": "What query does",
+  "action": {
+    "type": "NAVIGATE", // optional: NAVIGATE, null
+    "payload": "/billing" // optional path: /billing, /products, /inventory, /sales, /users, /settings
+  }
+}
+Do not format the JSON in markdown code blocks. Keep it raw JSON.
+`;
+
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();
@@ -10,100 +102,128 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-
     const { message } = await request.json();
-    const query = (message || '').toLowerCase().trim();
+    const queryText = (message || '').trim();
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    if (!queryText) {
+      return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
+    }
 
-    // Intent 1: Low Stock Query
-    if (query.includes('low stock') || query.includes('reorder') || query.includes('out of stock')) {
-      const lowStockItems = await prisma.inventory.findMany({
-        where: { quantity: { lte: 10 } },
-        include: { product: { select: { name: true, unit: true, price: true } } },
-        take: 10,
+    if (!GEMINI_API_KEY) {
+      return NextResponse.json({
+        reply: 'AI Assistant key is missing. Please configure GEMINI_API_KEY to activate your Business Copilot.',
       });
+    }
 
-      if (lowStockItems.length === 0) {
-        return NextResponse.json({
-          reply: 'Great news! All products currently have healthy stock levels. No low stock items detected.',
-          action: { type: 'NAVIGATE', payload: '/inventory' },
-        });
+    // Step 1: Call Gemini to decide if we need a database query
+    const classificationResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: DB_SCHEMA_PROMPT },
+                { text: `User request: "${queryText}"` }
+              ]
+            }
+          ]
+        }),
       }
+    );
 
-      const itemNames = lowStockItems.map((i) => `• ${i.product.name} (${i.quantity} ${i.product.unit} left)`).join('\n');
-      return NextResponse.json({
-        reply: `Here are your current low stock items:\n\n${itemNames}\n\nWould you like me to open Inventory management?`,
-        action: { type: 'NAVIGATE', payload: '/inventory' },
-      });
+    if (!classificationResponse.ok) {
+      throw new Error('Failed to classify user query with Gemini');
     }
 
-    // Intent 2: Sales & Profit Query
-    if (query.includes('profit') || query.includes('revenue') || query.includes('today\'s sales') || query.includes('today sales')) {
-      const todaySales = await prisma.sale.findMany({
-        where: { createdAt: { gte: todayStart }, paymentStatus: 'COMPLETED' },
-        include: { saleItems: { include: { product: true } } },
-      });
+    const classData = await classificationResponse.json();
+    const classText = classData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const cleanedClassJson = classText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let analysisResult: {
+      needsQuery: boolean;
+      query: string;
+      explanation: string;
+      action?: { type: string; payload: string };
+    };
 
-      const totalRevenue = todaySales.reduce((acc, s) => acc + Number(s.total), 0);
-      const salesCount = todaySales.length;
-
-      let estimatedProfit = 0;
-      todaySales.forEach((sale) => {
-        sale.saleItems.forEach((item) => {
-          const cost = Number(item.product.costPrice) || (Number(item.unitPrice) * 0.7);
-          const profit = (Number(item.unitPrice) - cost) * item.quantity;
-          estimatedProfit += Math.max(profit, 0);
-        });
-      });
-
-      return NextResponse.json({
-        reply: `📊 **Today's Sales Summary**:\n• **Total Revenue**: ₹${totalRevenue.toFixed(2)}\n• **Total Orders**: ${salesCount}\n• **Estimated Net Profit**: ₹${estimatedProfit.toFixed(2)}`,
-        action: { type: 'NAVIGATE', payload: '/sales' },
-      });
+    try {
+      analysisResult = JSON.parse(cleanedClassJson);
+    } catch {
+      analysisResult = { needsQuery: false, query: '', explanation: '' };
     }
 
-    // Intent 3: Navigation Intent ("Create product", "Billing", "Categories")
-    if (query.includes('create product') || query.includes('add product')) {
-      return NextResponse.json({
-        reply: 'Opening Product Management where you can create a new product or use our AI Product Scanner.',
-        action: { type: 'NAVIGATE', payload: '/products?action=new' },
-      });
-    }
+    let queryResultsData = null;
 
-    if (query.includes('billing') || query.includes('new bill') || query.includes('checkout')) {
-      return NextResponse.json({
-        reply: 'Opening Billing Terminal for counter checkout.',
-        action: { type: 'NAVIGATE', payload: '/billing' },
-      });
-    }
+    // Step 2: If query is needed, execute the SQL read-only SELECT query
+    if (analysisResult.needsQuery && analysisResult.query) {
+      const sqlQuery = analysisResult.query.trim();
+      
+      // Strict Security Check: Verify it is a SELECT query and does not contain mutating commands
+      const lowerQuery = sqlQuery.toLowerCase();
+      const isReadOnly = lowerQuery.startsWith('select') || lowerQuery.startsWith('with');
+      const hasMutators = lowerQuery.includes('delete') || 
+                           lowerQuery.includes('update') || 
+                           lowerQuery.includes('insert') || 
+                           lowerQuery.includes('drop') || 
+                           lowerQuery.includes('truncate') || 
+                           lowerQuery.includes('alter') || 
+                           lowerQuery.includes('grant');
 
-    if (query.includes('duplicate') || query.includes('find duplicate')) {
-      const allProducts = await prisma.product.findMany({ select: { id: true, name: true, barcode: true } });
-      const nameCounts: Record<string, number> = {};
-      allProducts.forEach((p) => {
-        const k = p.name.toLowerCase();
-        nameCounts[k] = (nameCounts[k] || 0) + 1;
-      });
-      const dupes = Object.entries(nameCounts).filter(([_, count]) => count > 1);
-
-      if (dupes.length === 0) {
-        return NextResponse.json({
-          reply: 'Checked your catalog! No duplicate product names or barcodes were found.',
-        });
+      if (isReadOnly && !hasMutators) {
+        try {
+          // Execute raw SQL securely
+          queryResultsData = await prisma.$queryRawUnsafe(sqlQuery);
+        } catch (dbErr: any) {
+          console.warn('Prisma raw query failed:', dbErr.message);
+          queryResultsData = { error: dbErr.message };
+        }
+      } else {
+        queryResultsData = { error: 'Query rejected: Security check failed. Only SELECT statements are allowed.' };
       }
-
-      return NextResponse.json({
-        reply: `Found ${dupes.length} duplicate product names in your database:\n${dupes.map(([name, c]) => `• "${name}" (${c} instances)`).join('\n')}`,
-        action: { type: 'NAVIGATE', payload: '/products' },
-      });
     }
 
-    // Generic Assistant Response
+    // Step 3: Call Gemini again to format the final reply using the queried database results
+    const finalAnswerResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are the Business Copilot for PVS POS.
+Answer the user's business request professionally and concisely.
+If database results are provided, explain them clearly, format stats in bold/tables, and provide smart business advice based on them.
+If there are errors or no data, notify the user helpfully.
+
+User request: "${queryText}"
+Database query run: "${analysisResult.query || 'None'}"
+Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetched')}`
+                }
+              ]
+            }
+          ]
+        }),
+      }
+    );
+
+    if (!finalAnswerResponse.ok) {
+      throw new Error('Failed to generate final reply with Gemini');
+    }
+
+    const finalData = await finalAnswerResponse.json();
+    const replyText = finalData.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I encountered an issue compiling the response.';
+
     return NextResponse.json({
-      reply: `I am your **PVS POS AI Copilot**. I can help you with:\n• *"Show low stock items"*\n• *"How much profit today?"*\n• *"Open Billing"*\n• *"Create new product"*\n• *"Find duplicate products"*`,
+      reply: replyText,
+      action: analysisResult.action || null,
     });
+
   } catch (error: any) {
     console.error('POST /api/assistant/chat error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
