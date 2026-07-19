@@ -11,8 +11,9 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2Icon } from '@/components/icons';
+import { Loader2Icon, TrashIcon } from '@/components/icons';
 import { VoiceController } from './voice-controller';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
@@ -35,9 +36,39 @@ export function AiCopilotDrawer() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('copilot_messages');
+    if (stored) {
+      try {
+        setMessages(JSON.parse(stored));
+      } catch (e) {
+        console.error('Failed to parse stored copilot messages:', e);
+      }
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('copilot_messages', JSON.stringify(messages));
+    }
+  }, [messages]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  const handleClearChat = () => {
+    const defaultMsg: Message = {
+      id: '1',
+      sender: 'assistant',
+      text: 'Hello! I am your **PVS POS AI Copilot**. Ask me anything about your revenue, inventory, low stock items, or system commands!',
+    };
+    setMessages([defaultMsg]);
+    localStorage.setItem('copilot_messages', JSON.stringify([defaultMsg]));
+    toast.success('Chat history cleared');
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -100,7 +131,18 @@ export function AiCopilotDrawer() {
           <SheetTitle className="flex items-center gap-2 text-lg font-bold">
             <span>🤖 AI POS Copilot</span>
           </SheetTitle>
-          <VoiceController />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClearChat}
+              title="Clear chat history"
+              className="text-muted-foreground hover:text-destructive h-8 w-8 rounded-lg cursor-pointer"
+            >
+              <TrashIcon size={16} />
+            </Button>
+            <VoiceController />
+          </div>
         </SheetHeader>
 
         {/* Chat History */}
