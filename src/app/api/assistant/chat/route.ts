@@ -135,7 +135,14 @@ export async function POST(request: Request) {
     );
 
     if (!classificationResponse.ok) {
-      throw new Error('Failed to classify user query with Gemini');
+      let errText = '';
+      try {
+        const errJson = await classificationResponse.json();
+        errText = errJson.error?.message || JSON.stringify(errJson);
+      } catch {
+        errText = await classificationResponse.text();
+      }
+      throw new Error(`Gemini Classification failed: ${errText}`);
     }
 
     const classData = await classificationResponse.json();
@@ -213,7 +220,14 @@ Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetche
     );
 
     if (!finalAnswerResponse.ok) {
-      throw new Error('Failed to generate final reply with Gemini');
+      let errText = '';
+      try {
+        const errJson = await finalAnswerResponse.json();
+        errText = errJson.error?.message || JSON.stringify(errJson);
+      } catch {
+        errText = await finalAnswerResponse.text();
+      }
+      throw new Error(`Gemini Final Response failed: ${errText}`);
     }
 
     const finalData = await finalAnswerResponse.json();
@@ -226,6 +240,6 @@ Database raw response data: ${JSON.stringify(queryResultsData || 'No data fetche
 
   } catch (error: any) {
     console.error('POST /api/assistant/chat error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
