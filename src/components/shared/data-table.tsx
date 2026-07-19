@@ -42,9 +42,31 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
+  // Map legacy accessor to TanStack Table v8 format dynamically
+  const mappedColumns = columns.map((col: any, index: number) => {
+    if (col.accessor && !col.accessorKey && !col.accessorFn) {
+      const id = col.id || `col_${index}`;
+      if (typeof col.accessor === 'function') {
+        return {
+          ...col,
+          id,
+          accessorFn: col.accessor,
+          cell: (info: any) => info.getValue(),
+        };
+      } else if (typeof col.accessor === 'string') {
+        return {
+          ...col,
+          id,
+          accessorKey: col.accessor,
+        };
+      }
+    }
+    return col;
+  });
+
   const table = useReactTable({
     data,
-    columns,
+    columns: mappedColumns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
