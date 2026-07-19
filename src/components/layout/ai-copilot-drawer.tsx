@@ -51,6 +51,10 @@ export function AiCopilotDrawer() {
 
       const data = await res.json();
 
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to communicate with AI Copilot');
+      }
+
       if (data.reply) {
         setMessages((prev) => [
           ...prev,
@@ -64,10 +68,10 @@ export function AiCopilotDrawer() {
           router.push(data.action.payload);
         }, 1200);
       }
-    } catch {
+    } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), sender: 'assistant', text: 'Sorry, I encountered an error. Please try again.' },
+        { id: (Date.now() + 1).toString(), sender: 'assistant', text: `⚠️ Error: ${err.message || 'Please try again.'}` },
       ]);
     } finally {
       setIsLoading(false);
