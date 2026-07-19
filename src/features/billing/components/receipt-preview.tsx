@@ -98,10 +98,12 @@ export function ReceiptPreview({
           <span>Subtotal:</span>
           <span>{formatCurrency(Number(data.subtotal) || 0)}</span>
         </div>
-        <div className="flex justify-between">
-          <span>GST Tax (18%):</span>
-          <span>{formatCurrency(Number(data.taxAmount) || 0)}</span>
-        </div>
+        {Number(data.taxAmount) > 0 && (
+          <div className="flex justify-between">
+            <span>GST Tax:</span>
+            <span>{formatCurrency(Number(data.taxAmount) || 0)}</span>
+          </div>
+        )}
         {Number(data.discountAmount) > 0 && (
           <div className="flex justify-between">
             <span>Discount:</span>

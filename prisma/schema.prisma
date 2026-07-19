@@ -124,6 +124,7 @@ model Profile {
   gstNumber    String?     @map("gst_number")
   currency     String      @default("INR")
   taxRate      Decimal     @default(18) @map("tax_rate")
+  gstEnabled   Boolean     @default(true) @map("gst_enabled")
   isActive     Boolean     @default(true) @map("is_active")
   lastLogin    DateTime?   @map("last_login")
   createdAt    DateTime    @default(now()) @map("created_at")

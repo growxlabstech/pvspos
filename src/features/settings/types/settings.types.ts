@@ -9,6 +9,7 @@ export interface ProfileSettings {
   gstNumber?: string | null;
   currency: string;
   taxRate: number;
+  gstEnabled?: boolean;
   role?: string;
   createdAt: string;
   updatedAt: string;
@@ -22,4 +23,5 @@ export interface UpdateSettingsInput {
   gstNumber?: string;
   currency: string;
   taxRate: number;
+  gstEnabled?: boolean;
 }

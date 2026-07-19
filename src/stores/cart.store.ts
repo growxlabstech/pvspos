@@ -54,6 +54,9 @@ interface CartStore {
   resumeBill: (heldBillId: string) => void;
   deleteHeldBill: (heldBillId: string) => void;
 
+  gstEnabled: boolean;
+  setGstEnabled: (enabled: boolean) => void;
+
   // Calculation Helpers
   getSubtotal: () => number;
   getItemDiscountsTotal: () => number;
@@ -70,6 +73,9 @@ export const useCartStore = create<CartStore>()(
       discount: 0,
       customer: null,
       heldBills: [],
+      gstEnabled: true,
+
+      setGstEnabled: (enabled) => set({ gstEnabled: enabled }),
 
       addItem: (item) => {
         set((state) => {
@@ -200,7 +206,8 @@ export const useCartStore = create<CartStore>()(
       },
 
       getTaxAmount: () => {
-        const { items } = get();
+        const { items, gstEnabled } = get();
+        if (!gstEnabled) return 0;
         return items.reduce((sum, item) => {
           const itemSubtotal = (item.price - (item.discount || 0)) * item.quantity;
           return sum + (itemSubtotal * item.taxRate) / 100;
@@ -227,7 +234,7 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'pvs-pos-cart-storage',
-      partialize: (state) => ({ heldBills: state.heldBills }),
+      partialize: (state) => ({ heldBills: state.heldBills, gstEnabled: state.gstEnabled }),
     }
   )
 );

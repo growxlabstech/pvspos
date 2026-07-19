@@ -28,6 +28,7 @@ export function CartPanel({ onOpenPayment, onOpenCustomer, onHoldBill }: CartPan
     getRoundOff,
     getTotal,
     getItemCount,
+    gstEnabled,
   } = useCartStore();
 
   const [billDiscountInput, setBillDiscountInput] = useState(discount.toString());
@@ -167,10 +168,12 @@ export function CartPanel({ onOpenPayment, onOpenCustomer, onHoldBill }: CartPan
             <span>Subtotal</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>GST Tax (CGST + SGST)</span>
-            <span>{formatCurrency(taxAmount)}</span>
-          </div>
+          {gstEnabled && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>GST Tax (CGST + SGST)</span>
+              <span>{formatCurrency(taxAmount)}</span>
+            </div>
+          )}
 
           <div className="flex justify-between items-center text-muted-foreground py-0.5">
             <span>Bill Discount (₹)</span>

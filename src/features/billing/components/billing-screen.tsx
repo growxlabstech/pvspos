@@ -10,6 +10,7 @@ import { HeldBillsModal } from './held-bills-modal';
 import { CashDrawerModal } from './cash-drawer-modal';
 import { HotkeysBar } from './hotkeys-bar';
 import { useCartStore } from '@/stores/cart.store';
+import { useSettings } from '@/features/settings/hooks/use-settings';
 import { toast } from 'sonner';
 
 export function BillingScreen() {
@@ -20,7 +21,15 @@ export function BillingScreen() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [completedSale, setCompletedSale] = useState<any>(null);
 
-  const { items, holdBill, customer } = useCartStore();
+  const { items, holdBill, customer, setGstEnabled } = useCartStore();
+  const { data: settings } = useSettings();
+
+  // Sync GST enabled preference from settings to cart store
+  useEffect(() => {
+    if (settings) {
+      setGstEnabled(settings.gstEnabled !== false);
+    }
+  }, [settings, setGstEnabled]);
 
   // Keyboard Shortcuts Listener (F2, F3, F4, F5, F6, F7, Ctrl+S)
   useEffect(() => {

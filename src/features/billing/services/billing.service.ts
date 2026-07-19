@@ -12,6 +12,13 @@ export const billingService = {
       });
       const invoiceNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
+      // 1.5. Fetch user profile settings to check if GST is enabled
+      const profile = await tx.profile.findUnique({
+        where: { id: userId },
+        select: { gstEnabled: true },
+      });
+      const gstEnabled = profile?.gstEnabled !== false;
+
       // 2. Calculate totals
       let subtotal = 0;
       let taxAmount = 0;
@@ -31,7 +38,7 @@ export const billingService = {
         }
 
         const itemTotal = item.unitPrice * item.quantity;
-        const itemTax = (itemTotal * item.taxRate) / 100;
+        const itemTax = gstEnabled ? ((itemTotal * item.taxRate) / 100) : 0;
 
         subtotal += itemTotal;
         taxAmount += itemTax;

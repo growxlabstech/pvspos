@@ -63,6 +63,7 @@ export async function PUT(request: Request) {
         gstNumber: validation.data.gstNumber || null,
         currency: validation.data.currency,
         taxRate: validation.data.taxRate,
+        gstEnabled: validation.data.gstEnabled,
       },
       create: {
         id: user.userId,
@@ -74,6 +75,7 @@ export async function PUT(request: Request) {
         gstNumber: validation.data.gstNumber || null,
         currency: validation.data.currency,
         taxRate: validation.data.taxRate,
+        gstEnabled: validation.data.gstEnabled,
       },
     });
 

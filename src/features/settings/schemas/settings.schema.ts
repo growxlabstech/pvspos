@@ -8,6 +8,7 @@ export const updateSettingsSchema = z.object({
   gstNumber: z.string().optional(),
   currency: z.string().min(1, 'Currency is required'),
   taxRate: z.coerce.number().min(0, 'Tax rate cannot be negative').max(100, 'Tax rate cannot exceed 100%'),
+  gstEnabled: z.boolean(),
 });
 
 export type UpdateSettingsSchemaInput = z.infer<typeof updateSettingsSchema>;

@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { updateSettingsSchema, UpdateSettingsSchemaInput } from '../schemas/settings.schema';
 import { useSettings, useUpdateSettings } from '../hooks/use-settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 
@@ -19,6 +20,7 @@ export function SettingsClient() {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<UpdateSettingsSchemaInput>({
     resolver: zodResolver(updateSettingsSchema),
@@ -30,6 +32,7 @@ export function SettingsClient() {
       gstNumber: '',
       currency: 'INR',
       taxRate: 18,
+      gstEnabled: true,
     },
   });
 
@@ -43,6 +46,7 @@ export function SettingsClient() {
         gstNumber: settings.gstNumber || '',
         currency: settings.currency || 'INR',
         taxRate: Number(settings.taxRate) || 18,
+        gstEnabled: settings.gstEnabled !== false,
       });
     }
   }, [settings, reset]);
@@ -124,6 +128,26 @@ export function SettingsClient() {
                   <p className="text-xs text-destructive">{errors.taxRate.message}</p>
                 )}
               </div>
+            </div>
+
+            {/* GST Enabled Toggle */}
+            <div className="pt-4 border-t flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-bold">GST Billing Enabled</Label>
+                <p className="text-xs text-muted-foreground">
+                  Toggle whether GST taxes are calculated and added to invoices. If disabled, all bills will have zero tax.
+                </p>
+              </div>
+              <Controller
+                control={control}
+                name="gstEnabled"
+                render={({ field }) => (
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
             </div>
           </CardContent>
         </Card>
