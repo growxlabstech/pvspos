@@ -27,6 +27,7 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
   // AI Product Image Studio states
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [studioFile, setStudioFile] = useState<File | null>(null);
+  const [openCameraOnInit, setOpenCameraOnInit] = useState(false);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -57,6 +58,7 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
       size: formatFileSize(file.size),
     });
     setStudioFile(file);
+    setOpenCameraOnInit(false);
     setIsStudioOpen(true);
   };
 
@@ -143,6 +145,7 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
               type="button"
               onClick={() => {
                 setStudioFile(null);
+                setOpenCameraOnInit(false);
                 setIsStudioOpen(true);
               }}
               disabled={disabled || isUploading}
@@ -209,13 +212,25 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
               <div className="p-3 rounded-full bg-primary/10 text-primary">
                 <PlusIcon className="w-6 h-6" />
               </div>
-              <div>
+              <div className="flex flex-col items-center">
                 <p className="text-sm font-semibold">
                   <span className="text-primary hover:underline">Click to upload</span> or drag & drop
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 mb-2.5">
                   JPG, PNG, or WEBP (Max 5 MB)
                 </p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStudioFile(null);
+                    setOpenCameraOnInit(true);
+                    setIsStudioOpen(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold text-primary bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  📷 Take Photo with Camera
+                </button>
               </div>
             </div>
           )}
@@ -228,6 +243,7 @@ export function ImageUploader({ value, onChange, disabled }: ImageUploaderProps)
         onOpenChange={setIsStudioOpen}
         originalFile={studioFile}
         existingImageUrl={value}
+        openCameraOnInit={openCameraOnInit}
         onEnhanced={(url) => {
           onChange(url);
           setFileDetails(prev => prev || { name: 'Enhanced Product Image', size: 'Optimized WebP' });

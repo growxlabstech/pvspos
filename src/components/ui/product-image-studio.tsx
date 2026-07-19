@@ -12,6 +12,7 @@ interface ProductImageStudioProps {
   originalFile: File | null;
   existingImageUrl?: string;
   onEnhanced: (url: string) => void;
+  openCameraOnInit?: boolean;
 }
 
 export function ProductImageStudio({
@@ -20,6 +21,7 @@ export function ProductImageStudio({
   originalFile,
   existingImageUrl,
   onEnhanced,
+  openCameraOnInit = false,
 }: ProductImageStudioProps) {
   const [step, setStep] = useState<string>('');
   const [progress, setProgress] = useState(0);
@@ -28,31 +30,130 @@ export function ProductImageStudio({
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'after' | 'before'>('after');
 
+  // Camera states
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
   // Enhancement controls
   const [bgType, setBgType] = useState<'white' | 'transparent'>('white');
   const [brightness, setBrightness] = useState<number>(0); // -100 to 100
   const [contrast, setContrast] = useState<number>(0); // -100 to 100
   const [sharpen, setSharpen] = useState<number>(30); // 0 to 100
-  const [tolerance, setTolerance] = useState<number>(35); // 10 to 100 (for bg removal)
+  const [tolerance, setTolerance] = useState<number>(35); // 10 to 100
 
-  const originalImgRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const finalBlobRef = useRef<Blob | null>(null);
 
   // Load image preview url
   useEffect(() => {
-    if (originalFile) {
-      const url = URL.createObjectURL(originalFile);
-      setOriginalPreviewUrl(url);
-      setPreviewUrl('');
-      setActiveTab('after');
-      return () => URL.revokeObjectURL(url);
-    } else if (existingImageUrl) {
-      setOriginalPreviewUrl(existingImageUrl);
-      setPreviewUrl('');
-      setActiveTab('after');
+    if (open) {
+      if (originalFile) {
+        const url = URL.createObjectURL(originalFile);
+        setOriginalPreviewUrl(url);
+        setPreviewUrl('');
+        setIsCameraActive(false);
+        setActiveTab('after');
+        return () => URL.revokeObjectURL(url);
+      } else if (openCameraOnInit) {
+        startCamera();
+      } else if (existingImageUrl) {
+        setOriginalPreviewUrl(existingImageUrl);
+        setPreviewUrl('');
+        setIsCameraActive(false);
+        setActiveTab('after');
+      }
+    } else {
+      stopCamera();
     }
-  }, [originalFile, existingImageUrl]);
+  }, [open, originalFile, existingImageUrl, openCameraOnInit]);
+
+  // Clean up camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
+  const startCamera = async () => {
+    try {
+      setIsProcessing(true);
+      setStep('Connecting to device camera...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
+        audio: false,
+      });
+      setCameraStream(stream);
+      setIsCameraActive(true);
+      
+      // Delay slightly to make sure video ref is mounted
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((e) => console.warn('Video play failed:', e));
+        }
+      }, 300);
+      
+      setOriginalPreviewUrl('');
+      setPreviewUrl('');
+    } catch (err: any) {
+      console.error('[ImageStudio] Camera error:', err.message);
+      toast.error('Could not access camera: ' + err.message);
+      setIsCameraActive(false);
+    } finally {
+      setIsProcessing(false);
+      setStep('');
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+
+    try {
+      setIsProcessing(true);
+      setStep('Capturing frame...');
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1024;
+      canvas.height = video.videoHeight || 1024;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get 2d context for capture');
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          finalBlobRef.current = blob;
+          const url = URL.createObjectURL(blob);
+          setOriginalPreviewUrl(url);
+          setPreviewUrl('');
+          stopCamera();
+          // Trigger automatic processing
+          setTimeout(() => {
+            setIsProcessing(false);
+            setStep('');
+          }, 300);
+        } else {
+          setIsProcessing(false);
+          setStep('');
+        }
+      }, 'image/jpeg', 0.9);
+    } catch (err: any) {
+      toast.error('Failed to capture photo: ' + err.message);
+      setIsProcessing(false);
+    }
+  };
 
   const processImage = async () => {
     if (!originalPreviewUrl) return;
@@ -61,7 +162,6 @@ export function ProductImageStudio({
     setStep('1. Loading image structure...');
     setProgress(15);
 
-    // Create an image object to load
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = originalPreviewUrl;
@@ -75,7 +175,6 @@ export function ProductImageStudio({
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Could not get 2d context');
 
-        // Draw original image to sample pixels
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = img.naturalWidth;
         tempCanvas.height = img.naturalHeight;
@@ -88,7 +187,7 @@ export function ProductImageStudio({
         const imgData = tempCtx.getImageData(0, 0, width, height);
         const data = imgData.data;
 
-        // Sample background from 4 corners (top-left, top-right, bottom-left, bottom-right)
+        // Sample background from 4 corners
         const sampleBgColor = (x: number, y: number) => {
           const idx = (y * width + x) * 4;
           return {
@@ -105,7 +204,6 @@ export function ProductImageStudio({
           sampleBgColor(width - 3, height - 3),
         ];
 
-        // 3. Find product bounding box (pixels that differ significantly from background samples)
         setStep('3. Extracting background & shadows...');
         setProgress(50);
 
@@ -121,8 +219,7 @@ export function ProductImageStudio({
           });
         };
 
-        // Scan pixels to find bounding box of the product
-        for (let y = 0; y < height; y += 4) { // step by 4 for performance
+        for (let y = 0; y < height; y += 4) {
           for (let x = 0; x < width; x += 4) {
             const idx = (y * width + x) * 4;
             const r = data[idx] ?? 0;
@@ -138,7 +235,6 @@ export function ProductImageStudio({
           }
         }
 
-        // Fallback if no bounds detected
         if (maxX <= minX || maxY <= minY) {
           minX = 0;
           minY = 0;
@@ -149,7 +245,6 @@ export function ProductImageStudio({
         const prodW = maxX - minX;
         const prodH = maxY - minY;
 
-        // 4. Center and scale onto 1024x1024 square canvas
         setStep('4. Centering product in catalog frame...');
         setProgress(70);
 
@@ -157,7 +252,6 @@ export function ProductImageStudio({
         canvas.width = size;
         canvas.height = size;
 
-        // Set background color
         if (bgType === 'white') {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, size, size);
@@ -165,7 +259,6 @@ export function ProductImageStudio({
           ctx.clearRect(0, 0, size, size);
         }
 
-        // Calculate fitting scale (85% size)
         const maxDim = Math.max(prodW, prodH);
         const scale = (size * 0.85) / maxDim;
         const targetW = prodW * scale;
@@ -173,25 +266,21 @@ export function ProductImageStudio({
         const targetX = (size - targetW) / 2;
         const targetY = (size - targetH) / 2;
 
-        // Draw cropped product onto square canvas
         ctx.drawImage(tempCanvas, minX, minY, prodW, prodH, targetX, targetY, targetW, targetH);
 
-        // 5. Image Enhancement filters (Brightness, Contrast, Sharpness)
         setStep('5. Enhancing lighting and text clarity...');
         setProgress(85);
 
         const canvasData = ctx.getImageData(0, 0, size, size);
         const pixels = canvasData.data;
 
-        // Apply Brightness/Contrast
         const bOffset = brightness;
         const cFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
         for (let i = 0; i < pixels.length; i += 4) {
           const a = pixels[i + 3] ?? 255;
-          if (a === 0) continue; // skip transparent background
+          if (a === 0) continue;
 
-          // Apply contrast/brightness per RGB channel
           for (let c = 0; c < 3; c++) {
             const val = pixels[i + c] ?? 0;
             let newVal = (val - 128) * cFactor + 128 + bOffset;
@@ -201,12 +290,10 @@ export function ProductImageStudio({
 
         ctx.putImageData(canvasData, 0, 0);
 
-        // Apply Sharpen Convolution Filter if enabled
         if (sharpen > 0) {
           const strength = sharpen / 100;
           const kEdge = -0.5 * strength;
           const kCenter = 1 + 2 * strength;
-          // Sharpen Kernel
           const weights = [
              0,    kEdge, 0,
              kEdge, kCenter, kEdge,
@@ -226,9 +313,8 @@ export function ProductImageStudio({
               const sx = x;
               const dstOff = (y * size + x) * 4;
 
-              // Copy alpha
               outPixels[dstOff + 3] = shPixels[dstOff + 3] ?? 255;
-              if (outPixels[dstOff + 3] === 0) continue; // skip transparent bg
+              if (outPixels[dstOff + 3] === 0) continue;
 
               let r = 0, g = 0, b = 0;
               for (let cy = 0; cy < side; cy++) {
@@ -252,7 +338,6 @@ export function ProductImageStudio({
           ctx.putImageData(outData, 0, 0);
         }
 
-        // Save preview url
         canvas.toBlob((blob) => {
           if (blob) {
             finalBlobRef.current = blob;
@@ -277,7 +362,6 @@ export function ProductImageStudio({
     };
   };
 
-  // Run automatically when first opening or parameters change
   useEffect(() => {
     if (open && originalPreviewUrl && !previewUrl && !isProcessing) {
       processImage();
@@ -296,7 +380,7 @@ export function ProductImageStudio({
     setProgress(90);
 
     try {
-      const fileName = originalFile ? originalFile.name.replace(/\.[^/.]+$/, '') : 'product';
+      const fileName = originalFile ? originalFile.name.replace(/\.[^/.]+$/, '') : 'product_camera';
       const file = new File([blob], `${fileName}_enhanced.webp`, { type: 'image/webp' });
 
       const formData = new FormData();
@@ -335,8 +419,13 @@ export function ProductImageStudio({
     toast.success('Downloaded WebP image locally!');
   };
 
+  const handleClose = () => {
+    stopCamera();
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !isProcessing && onOpenChange(v)}>
+    <Dialog open={open} onOpenChange={(v) => !isProcessing && handleClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -357,9 +446,67 @@ export function ProductImageStudio({
           </div>
         )}
 
-        {!isProcessing && (
+        {/* Camera Capture Feed */}
+        {!isProcessing && isCameraActive && (
+          <div className="flex flex-col items-center space-y-4 my-4">
+            <div className="relative w-full max-w-md aspect-square bg-black border rounded-xl overflow-hidden flex items-center justify-center">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover scale-x-[-1]"
+                playsInline
+                muted
+              />
+              <div className="absolute inset-0 border-2 border-dashed border-primary/40 rounded-xl pointer-events-none margin-4 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-white/50 bg-black/40 px-2 py-0.5 rounded">Align Product Here</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={capturePhoto} variant="default" size="sm" className="px-6 h-9 font-semibold cursor-pointer">
+                📸 Capture Photo
+              </Button>
+              <Button onClick={() => { stopCamera(); onOpenChange(false); }} variant="outline" size="sm" className="h-9 cursor-pointer">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State when no source loaded */}
+        {!isProcessing && !isCameraActive && !originalPreviewUrl && (
+          <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-xl my-4 space-y-4 bg-muted/10">
+            <p className="text-sm text-muted-foreground font-medium">No product image loaded in the studio.</p>
+            <div className="flex gap-3">
+              <Button onClick={startCamera} variant="default" size="sm" className="h-9 font-semibold cursor-pointer">
+                📷 Start Device Camera
+              </Button>
+              <Button
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.onchange = (e: any) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      setOriginalPreviewUrl(url);
+                    }
+                  };
+                  input.click();
+                }}
+                variant="outline"
+                size="sm"
+                className="h-9 cursor-pointer"
+              >
+                Upload File
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Main Processing Studio Controls & Preview */}
+        {!isProcessing && !isCameraActive && originalPreviewUrl && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-4 flex-1">
-            {/* 1. Preview Area */}
+            {/* Preview Panel */}
             <div className="md:col-span-2 flex flex-col space-y-3">
               <div className="flex bg-muted/40 p-1 rounded-lg self-start">
                 <button
@@ -405,7 +552,7 @@ export function ProductImageStudio({
               </div>
             </div>
 
-            {/* 2. Adjustment Controls */}
+            {/* Adjustments Panel */}
             <div className="flex flex-col space-y-4 border p-4 rounded-xl bg-card/50">
               <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b pb-2">Studio Controls</h3>
               
@@ -517,7 +664,7 @@ export function ProductImageStudio({
               variant="outline"
               size="sm"
               disabled={isProcessing}
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
               className="text-xs font-medium cursor-pointer"
             >
               Cancel
