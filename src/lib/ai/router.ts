@@ -186,10 +186,10 @@ class GeminiProvider implements AIProvider {
 class OpenRouterProvider implements AIProvider {
   name = 'OpenRouter';
   private fallbackModels = [
-    'google/gemma-3-27b-it:free',
+    'google/gemma-2-9b-it:free',
     'deepseek/deepseek-r1:free',
     'qwen/qwen-2.5-72b-instruct:free',
-    'mistralai/devstral-small:free'
+    'meta-llama/llama-3-8b-instruct:free'
   ];
 
   async generate(req: AIRequest): Promise<AIResponse> {
